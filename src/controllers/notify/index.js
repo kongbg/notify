@@ -1,6 +1,8 @@
 const axios = require('axios');
 const config = require('../../config')
 
+const db = require('../../db/index').db;
+
 const ID = config.notify.ID;
 const SECRET = config.notify.SECRET;
 const AGENTID = config.notify.AGENTID;
@@ -20,6 +22,9 @@ const getToken = async () => {
                     access_token:data.data.access_token
                 },
             };
+            if (body.code == 0) {
+                db.get("tokens").push({ agentid: AGENTID, token: data.data.access_token }).write();
+            }
             resolve(body);
         })
     })
@@ -42,7 +47,14 @@ const sendMsg = async (access_token, params) => {
                 msg: data.data.errcode == 0 ? '发送成功！' : '发送失败！',
                 data: data.data,
             };
-            resolve(body);
+
+            if (data.data.errcode == 0) {
+                resolve(body);
+            } else {
+                db.get('tokens').remove({agentid:AGENTID}).write();
+                sct_send(params)
+            }
+            
         })
     })
 }
@@ -95,20 +107,30 @@ const sct_send = async (params) => {
         if ((Object.prototype.toString.call(params) === '[object Object]' && !Object.keys(params).length) || (Object.prototype.toString.call(params) == "[object String]" && !params.length)) {
             resolve({code:-1, msg:'信息不能为空！'})
         } else {
-            let result = await getToken();
-            if (result.code == 0) {
-                let access_token = result.data.access_token;
-                let sendResult = await sendMsg(access_token, params);
-                resolve({
+            const tokenInfo = db.get('tokens').find({agentid:AGENTID}).value() //返回对象;
+            if (tokenInfo && tokenInfo.token) {
+                let sendResult = await sendMsg(tokenInfo.token, params);
+                return resolve({
                     code: sendResult.code, 
                     msg: sendResult.msg,
                     data: sendResult.data
                 })
             } else {
-                resolve({
-                    code: result.code, 
-                    msg: result.msg
-                })
+                let result = await getToken();
+                if (result.code == 0) {
+                    let access_token = result.data.access_token;
+                    let sendResult = await sendMsg(access_token, params);
+                    resolve({
+                        code: sendResult.code, 
+                        msg: sendResult.msg,
+                        data: sendResult.data
+                    })
+                } else {
+                    resolve({
+                        code: result.code, 
+                        msg: result.msg
+                    })
+                }
             }
         }
     })

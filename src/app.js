@@ -1,9 +1,10 @@
 const Koa = require('koa');
 const BodyParser = require('koa-bodyparser');
-const bodyparser = new BodyParser();
 const cors = require('koa2-cors');
-const config = require('./config')
+const bodyparser = new BodyParser();
+const config = require('./config');
 
+require('./db/index');
 // 引入路由
 const routes = require('./routes');
 const app = new Koa();
